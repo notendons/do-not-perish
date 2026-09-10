@@ -1,6 +1,6 @@
 # do-not-perish
 
-A V1 self-balancing reaction wheel cube. The goal is to balance an ESP32 on a single vertex using three orthogonal momentum wheels.
+A V1 self-balancing reaction wheel cube. The goal is to balance an ESP32 on a single vertex using three orthogonal momentum wheels. I'm distracting myself from senior year stress.
 
 ## architecture
 
@@ -33,4 +33,3 @@ $$\theta_{t} = \alpha(\theta_{t-1} + \omega_{gyro} \Delta t) + (1-\alpha)\theta_
 *   **Magnetometer Fusion:** Optional integration of the GY-87's HMC5883L to clamp yaw drift.
 *   **Fabrication:** Route the PCB traces and cast the chassis.
 *   **Testing:** Tune the PID loops and check step responses.
-*   **Admin:** SAT and IELTS prep.
