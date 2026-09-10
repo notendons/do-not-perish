@@ -7,13 +7,18 @@
 // PIN DEFINITIONS 
 // Motor X (roll axis)
 #define M1_PWM   25
-#define M1_DIR   26
+#define M1_DIR1  26
+#define M1_DIR2  32
+
 // Motor Y (pitch axis)
 #define M2_PWM   27
-#define M2_DIR   14
+#define M2_DIR1  14
+#define M2_DIR2  4
+
 // Motor Z (yaw axis)
 #define M3_PWM   12
-#define M3_DIR   13
+#define M3_DIR1  13
+#define M3_DIR2  23   
 // Shared standby pin for TB6612FNG (set HIGH to enable)
 #define DRIVER_STBY 33
 
@@ -65,7 +70,7 @@ double Kyaw = 0.0;              // SET TO 0 FOR NOW. Tune later.
 // ================= FUNCTION PROTOTYPES =================
 void calibrateGyro();
 void readIMU(float &roll, float &pitch, float dt);
-void driveMotor(int pwmChannel, int dirPin, double command);
+void driveMotor(int pwmChannel, int dirPin1, int dirPin2, double command);
 void setMotorOutputs(double rollCmd, double pitchCmd, double yawCmd);
 
 // ================= SETUP =================
@@ -94,11 +99,14 @@ void setup() {
   Serial.println(gyroOffsetZ);
 
   // Motor pins
-  pinMode(M1_DIR, OUTPUT);
-  pinMode(M2_DIR, OUTPUT);
-  pinMode(M3_DIR, OUTPUT);
-  pinMode(DRIVER_STBY, OUTPUT);
-  digitalWrite(DRIVER_STBY, HIGH);
+ pinMode(M1_DIR1, OUTPUT);
+ pinMode(M1_DIR2, OUTPUT);
+ pinMode(M2_DIR1, OUTPUT);
+ pinMode(M2_DIR2, OUTPUT);
+ pinMode(M3_DIR1, OUTPUT);
+ pinMode(M3_DIR2, OUTPUT);
+ pinMode(DRIVER_STBY, OUTPUT);
+ digitalWrite(DRIVER_STBY, HIGH);
 
   // PWM channels
   ledcSetup(PWM_CH_M1, PWM_FREQ, PWM_RES);
@@ -196,20 +204,28 @@ void readIMU(float &roll, float &pitch, float dt) {
   pitch = ALPHA * (pitch + gy * dt) + (1.0f - ALPHA) * accelPitch;
 }
 
-void driveMotor(int pwmChannel, int dirPin, double command) {
+void driveMotor(int pwmChannel, int dirPin1, int dirPin2, double command) {
   int duty = (int)fabsf(command);
   if (duty > 255) duty = 255;
 
-  if (command >= 0) {
-    digitalWrite(dirPin, HIGH);
-  } else {
-    digitalWrite(dirPin, LOW);
+  if (command > 0) {
+    digitalWrite(dirPin1, HIGH);
+    digitalWrite(dirPin2, LOW);
+  } 
+  else if (command < 0) {
+    digitalWrite(dirPin1, LOW);
+    digitalWrite(dirPin2, HIGH);
+  } 
+  else {
+    digitalWrite(dirPin1, LOW);
+    digitalWrite(dirPin2, LOW);
   }
+  
   ledcWrite(pwmChannel, duty);
 }
 
 void setMotorOutputs(double rollCmd, double pitchCmd, double yawCmd) {
-  driveMotor(PWM_CH_M1, M1_DIR, rollCmd);
-  driveMotor(PWM_CH_M2, M2_DIR, pitchCmd);
-  driveMotor(PWM_CH_M3, M3_DIR, yawCmd);   // <-- Ready for the 3rd PID
+  driveMotor(PWM_CH_M1, M1_DIR1, M1_DIR2, rollCmd);
+  driveMotor(PWM_CH_M2, M2_DIR1, M2_DIR2, pitchCmd);
+  driveMotor(PWM_CH_M3, M3_DIR1, M3_DIR2, yawCmd);
 }
