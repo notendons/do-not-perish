@@ -24,8 +24,8 @@ class BalanceController{
 
     BalanceTelemetry update(float angleDeg, float rateDegPerSec, float dtSec);
     private:
-    float kp_;
-    float ki_;
+    float kp_;// _ is here just to differentiate this cached version from the 
+    float ki_;// variables used inside .cpp files
     float kd_;
     float targetAngleDeg_;
     float integralError_;
