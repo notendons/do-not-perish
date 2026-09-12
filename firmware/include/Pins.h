@@ -6,11 +6,11 @@ namespace Pins{
   constexpr uint8_t IMU_sda=21;
   constexpr uint8_t IMU_scl=22;
   //ILI9341 TFT display pins
-  constexpr uint8_t tft_clk=18;
+  constexpr uint8_t tft_sck=18;
   constexpr uint8_t tft_mosi=23;
-  constexpr uint8_t tft_dc=33;
-  constexpr uint8_t tft_cs=5;
-  constexpr uint8_t tft_rst=17;
+  constexpr uint8_t tft_dc=33;//dc=rs
+  constexpr uint8_t tft_cs=32;
+  constexpr uint8_t tft_rst=13;
   //DRV8833 motor driver
   constexpr uint8_t motor_left_in1=25;
   constexpr uint8_t motor_left_in2=26;
