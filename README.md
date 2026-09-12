@@ -1,38 +1,125 @@
 # do-not-perish
 
-A V1 self-balancing reaction wheel cube. The goal is to balance an ESP32 on a single vertex using three orthogonal momentum wheels. I'm distracting myself from senior year stress.
+## Current state — September 2026
 
-## architecture
+This repository is currently the early build stage of **TiltCube v1**: a two-wheel self-balancing cube robot with an ESP32 and a tiny screen face.
 
-*   **/hardware** — The original KiCad design is for brushed motors. Revise it before using this firmware: replace the TB6612FNG stages with three 3-phase BLDC stages and add three AS5048A encoders.
-*   **/firmware** — PlatformIO C++ workspace. It uses SimpleFOC to run three 2804 gimbal motors from AS5048A SPI feedback, with a 500Hz corner-attitude outer loop.
+It is no longer the original three-flywheel, corner-balancing reaction-wheel cube concept. That idea was cool, absurdly difficult as a first version, and has been intentionally retired. The current robot is an inverted-pendulum rover: it balances on two wheels and can eventually drive around while looking vaguely alive.
 
-## the hardware rationale
+The project is real, organised, and compiling. It is not physically assembled yet and it cannot balance yet. That is normal.
 
-*   **ESP32 DevKit:** A 240MHz dual-core processor is objectively overkill for running three basic PIDs, but it easily handles the 20kHz PWM resolution, I'm already deeply familiar with its C++ environment in PlatformIO, and they are cheap. 
-*   **GY-87 10-DOF IMU:** Combines the standard MPU6050 (accel/gyro) needed for the spatial orientation math with an HMC5883L magnetometer and BMP180 barometer. Mainly chosen because it's a reliable, integrated I2C breakout that leaves room to fuse magnetometer data later to fix yaw drift.
-*   **3-phase BLDC drivers:** A 2804 is a three-phase brushless motor. Each wheel needs a proper 3-PWM (or 6-PWM) BLDC inverter with 3.3V logic inputs; a TB6612FNG cannot commutate it.
-*   **AS5048A encoders:** One encoder per wheel supplies the absolute rotor angle required for field-oriented control. The three encoders share SPI clock/data lines and use separate chip-select pins.
-*   **2804 gimbal motors:** Run in FOC torque mode. A q-axis voltage/current command creates rotor torque and therefore flywheel acceleration; it is not an rpm target.
+## What exists right now
 
-## the physics
+### Hardware schematic
 
-The cube stays upright via conservation of angular momentum. Accelerating a flywheel generates a reactive counter-torque on the chassis to counter gravity:
-$$\vec{\tau} = I \vec{\alpha} + \vec{\omega} \times (I \vec{\omega})$$
+`hardware/hardware.kicad_sch` contains the current KiCad wiring schematic.
 
-Orientation is tracked as a gravity vector in cube coordinates rather than roll and pitch. At a balanced corner, gravity points along a cube diagonal, $(\pm1,\pm1,\pm1)/\sqrt3$, not along a face normal. The outer controller uses gravity-vector error and body angular rate to command wheel torque:
-$$V_q = K_p(\hat g \times g_{target}) - K_d\omega_{tilt} - K_w\omega_{wheel}$$
+It includes:
 
-SimpleFOC turns $V_q$ into phase voltages using the AS5048A rotor angle. This is voltage-torque control; adding phase-current sensing later turns it into calibrated current/torque control.
+- ESP32 30-pin DevKit
+- GY-87 IMU
+- HW-627 DRV8833 motor-driver module
+- Two N20 motors and their connectors
+- 2.8-inch ILI9341 SPI TFT connector
+- Two adjustable LM2596 buck-converter modules
+- 2S battery, BMS, fuse, and main power switch
+- Motor noise/rail capacitors and DRV8833 input pulldowns
 
-## current status
+The intended power tree is:
 
-*   **Motor logic:** Three sensor-based FOC loops, one per reaction wheel. The old dual-pin TB6612 logic is retired.
-*   **Control loop:** A vector PD controller stabilizes the two gravity-defined tilt axes. Yaw about gravity is intentionally not controlled by the accelerometer; it does not generate gravitational toppling torque.
+```text
+2S battery → BMS → 3 A fuse → main switch
+                            ├─ LM2596 set to 6 V → DRV8833 + motors
+                            └─ LM2596 set to 5 V → ESP32 VIN
 
-## roadmap
+ESP32 3V3 → GY-87 + TFT VCC + TFT LED
+```
 
-*   **Current sensing and LQR:** Add inline phase-current sensing to make torque repeatable, then identify cube/wheel inertia and move to LQR or full state feedback.
-*   **Magnetometer Fusion:** Optional integration of the GY-87's HMC5883L to clamp yaw drift.
-*   **Fabrication:** Route the PCB traces and cast the chassis.
-*   **Testing:** Tune the PID loops and check step responses.
+The schematic has been drawn. It still needs an Electrical Rules Check (ERC) before it is treated as final.
+
+### Firmware
+
+The PlatformIO project lives in `firmware/` and currently builds successfully for `esp32dev`.
+
+| File | Current job | State |
+| --- | --- | --- |
+| `firmware/platformio.ini` | ESP32/Arduino config and Adafruit libraries | working |
+| `firmware/include/Pins.h` | GPIO assignments and robot constants | working |
+| `firmware/include/balance.h` | PID controller interface and telemetry | working |
+| `firmware/src/balance.cpp` | PID calculation, integral clamp, telemetry | working |
+| `firmware/include/imu.h` | IMU interface and telemetry | working |
+| `firmware/src/imu.cpp` | MPU6050 init, gyro calibration, complementary filter | working |
+| `firmware/src/main.cpp` | Two FreeRTOS tasks pinned to ESP32 cores | scaffolded and compiling |
+| `firmware/src/motors.cpp` | DRV8833/PWM motor code | intentionally empty |
+| `firmware/src/display.cpp` | ILI9341 face code | intentionally empty |
+
+## Current firmware architecture
+
+```text
+Core 1 — balance task
+every 5 ms / 200 Hz
+eventually: IMU → filter → PID → motors
+
+Core 0 — display task
+every 100 ms / 10 FPS
+eventually: draw/update face
+```
+
+The core split exists now. The live balance chain does not yet exist because the motor and display modules have not been written or connected to `main.cpp`.
+
+## Current GPIO plan
+
+```text
+GY-87
+  SDA → GPIO21
+  SCL → GPIO22
+
+ILI9341 TFT
+  SCK   → GPIO18
+  MOSI  → GPIO23
+  DC    → GPIO33
+  CS    → GPIO32
+  RESET → GPIO13
+
+DRV8833 module
+  IN4 → GPIO25
+  IN3 → GPIO26
+  IN2 → GPIO27
+  IN1 → GPIO14
+```
+
+The TFT uses 3.3 V for `VCC` and `LED`, matching ESP32 logic levels. Its touch pins are unused in v1.
+
+## Parts plan
+
+The intended v1 parts are:
+
+- ESP32 30-pin DevKit
+- GY-87
+- 2 × 6 V, 200 RPM N20 metal gear motors
+- HW-627 DRV8833 board
+- 2.8-inch 240 × 320 ILI9341 SPI TFT
+- 2 × LM2596 adjustable buck boards
+- 2 × matched 18650 cells in series, a 2S BMS, fuse, and switch
+- 34 mm wheels
+
+The parts are being sourced; this is still a software-and-schematic-first phase.
+
+## Important current limitations
+
+- No motor encoders in v1. It can balance by tilt angle but will not accurately know its speed or position, so some wandering is expected.
+- The N20s are a compromise for a first working, compact, affordable robot—not unlimited recovery power.
+- The IMU axis assumptions are code placeholders until the real module is mounted. Physical testing will decide whether an axis or sign needs reversing.
+- The current PID values are starter values. They are not tuned values and should not be treated as physics carved into stone.
+
+## Next actual task
+
+1. Run KiCad ERC and fix genuine unconnected-net errors.
+2. Write `motors.cpp`: PWM setup, signed motor commands, and a reliable stop function.
+3. Write a minimal `display.cpp`: initialize TFT and draw one static face.
+4. Connect `ImuReader`, `BalanceController`, and motors in `balanceTask()`.
+5. When hardware arrives, test power rails with a multimeter before connecting anything expensive.
+
+## Rule of the project
+
+The code compiling is not evidence that the robot will balance. It is evidence that the robot has become qualified to fail in a much more interesting way.
