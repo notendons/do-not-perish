@@ -35,7 +35,7 @@ The intended power tree is:
 ESP32 3V3 → GY-87 + TFT VCC + TFT LED
 ```
 
-The schematic has been drawn. It still needs an Electrical Rules Check (ERC) before it is treated as final.
+The schematic has been drawn. It passes KiCad's Electrical Rules Check (ERC).
 
 ### Firmware
 
