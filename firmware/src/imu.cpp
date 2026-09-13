@@ -46,7 +46,7 @@ void ImuReader::calibrateGyro(uint16_t sampleCount){
 }
 
 ImuTelemetry ImuReader::update(float dtSec){
-    if(!ready_||dtSec<=0.0f||dtSec>0.1f){
+    if(!ready_){
         return {0.0f,0.0f,0.0f,0.0f,0.0f,false};
     }
     if (dtSec<=0.0f||dtSec>0.1f){

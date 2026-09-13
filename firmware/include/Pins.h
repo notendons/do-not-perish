@@ -12,10 +12,10 @@ namespace Pins{
   constexpr uint8_t tft_cs=32;
   constexpr uint8_t tft_rst=13;
   //DRV8833 motor driver
-  constexpr uint8_t motor_left_in1=25;
-  constexpr uint8_t motor_left_in2=26;
-  constexpr uint8_t motor_right_in1=27;
-  constexpr uint8_t motor_right_in2=14;
+  constexpr uint8_t motor_left_in1=14;
+  constexpr uint8_t motor_left_in2=27;
+  constexpr uint8_t motor_right_in1=26;
+  constexpr uint8_t motor_right_in2=25;
 }
 namespace Robot{
 

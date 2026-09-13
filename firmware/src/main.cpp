@@ -1,20 +1,48 @@
 #include "Pins.h"
 #include "balance.h"
+#include "imu.h"
+#include "motors.h"
+
 #include <Arduino.h>
+#include <math.h>
+
+ImuReader imu;
+BalanceController balance;
+Motors motors;
 
 volatile uint32_t balanceCycles=0;
+volatile int latestMotorCommand=0;
+volatile bool balanceArmed=false;
 
 //core 1 function
 void balanceTask(void *parameter){
   const TickType_t interval=pdMS_TO_TICKS(Robot::balance_interval_ms);
+
+  const float dtSec= Robot::balance_interval_ms/1000.0f;
   TickType_t lastWakeTime=xTaskGetTickCount();
 
   for(;;){
-    balanceCycles++;
+    int motorCommand=0;
 
-    //read IMU
-    //calculate PID
-    //command motors
+    if(balanceArmed){
+      ImuTelemetry imuData=imu.update(dtSec); //read IMU
+      if(!imuData.valid){
+        balanceArmed=false;
+        Serial.println("IMU error: balance disabled");
+      } else if (fabsf(imuData.angleDeg) > Robot::fall_angle_deg) {
+        balance.reset();
+        balanceArmed=false;
+        Serial.println("fall detected: balance disabled");
+      } else {
+        BalanceTelemetry balanceData= balance.update(imuData.angleDeg, imuData.gyroRateDegPerSec, dtSec);// calculate PID
+        motorCommand=balanceData.motorCommand;
+      }
+    }
+
+    motors.drive(motorCommand);//command motors
+
+    latestMotorCommand=motorCommand;
+    balanceCycles++;
 
     vTaskDelayUntil(&lastWakeTime,interval);
   }
@@ -25,9 +53,11 @@ void displayTask(void *parameter){
   TickType_t lastWakeTime=xTaskGetTickCount();
   for(;;){
     Serial.printf(
-      "Face: core %d | balance cycles: %lu/n",
+      "Face: core %d | cycles: %lu | armed: %s | motor: %d\n",
       xPortGetCoreID(),
-      balanceCycles
+      balanceCycles,
+      balanceArmed ? "yes":"no",
+      latestMotorCommand
     );
 
     //update display
@@ -39,6 +69,26 @@ void displayTask(void *parameter){
 void setup(){
   Serial.begin(115200);
   delay(500); //give it some time
+
+  //motor pins are config first, the explicitly turned off
+  motors.begin();
+  motors.stop();
+
+  if(!imu.begin()){
+    Serial.println("GY-87 not found. Motors locked.");
+
+    while(true){
+      motors.stop();
+      delay(1000);
+    }
+  }
+  Serial.println("keep the cube still: calibration in progress...");
+  delay(1000);
+  imu.calibrateGyro(500);//takes 500 samples
+
+  balance.setTargetAngle(0.0f);
+  balance.reset();
+  balanceArmed=true;
 
   //high-priority balance task is on core 1
   xTaskCreatePinnedToCore(
@@ -61,7 +111,7 @@ void setup(){
     0//core 0
   );
 
-  Serial.println("cores startup complete");
+  Serial.println("tasks started.");
   }
 
 
