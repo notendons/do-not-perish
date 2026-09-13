@@ -2,35 +2,34 @@
 
 ## Current state — September 2026
 
-This repository is currently the early build stage of **TiltCube v1**: a two-wheel self-balancing cube robot with an ESP32 and a tiny screen face.
+This repository is the early build stage of **Cogito v1**: a two-wheel self-balancing cube robot with an ESP32 and a tiny screen face, and frankly, my current attempt to escape from uni preparation stress.
 
-It is no longer the original three-flywheel, corner-balancing reaction-wheel cube concept. That idea was cool, absurdly difficult as a first version, and has been intentionally retired. The current robot is an inverted-pendulum rover: it balances on two wheels and can eventually drive around while looking vaguely alive.
-
-The project is real, organised, and compiling. It is not physically assembled yet and it cannot balance yet. That is normal.
+It used to be a three-flywheel cube balanced on one corner. That was a beautiful physics problem and an unreasonable first hardware project, so it has been deliberately retired. The current design is an inverted-pendulum rover.
+The firmware builds successfully. The KiCad schematic passes ERC. No physical hardware has been assembled or tested yet.
 
 ## What exists right now
 
-### Hardware schematic
+### Hardware
 
-`hardware/hardware.kicad_sch` contains the current KiCad wiring schematic.
+`hardware/hardware.kicad_sch` is the current wiring schematic and passes KiCad’s Electrical Rules Check.
 
 It includes:
 
 - ESP32 30-pin DevKit
 - GY-87 IMU
 - HW-627 DRV8833 motor-driver module
-- Two N20 motors and their connectors
+- Two N20 motors
 - 2.8-inch ILI9341 SPI TFT connector
-- Two adjustable LM2596 buck-converter modules
-- 2S battery, BMS, fuse, and main power switch
-- Motor noise/rail capacitors and DRV8833 input pulldowns
+- Two adjustable LM2596 buck converters
+- 2S battery, BMS, fuse, and main switch
+- Motor-noise capacitors, power-rail capacitors, and DRV8833 pulldown resistors
 
-The intended power tree is:
+Power plan:
 
 ```text
 2S battery → BMS → 3 A fuse → main switch
-                            ├─ LM2596 set to 6 V → DRV8833 + motors
-                            └─ LM2596 set to 5 V → ESP32 VIN
+                            ├─ 6 V LM2596 → DRV8833 + motors
+                            └─ 5 V LM2596 → ESP32 VIN
 
 ESP32 3V3 → GY-87 + TFT VCC + TFT LED
 ```
@@ -39,35 +38,44 @@ The schematic has been drawn. It passes KiCad's Electrical Rules Check (ERC).
 
 ### Firmware
 
-The PlatformIO project lives in `firmware/` and currently builds successfully for `esp32dev`.
+The PlatformIO project is in `firmware/` and builds for `esp32dev`.
 
 | File | Current job | State |
 | --- | --- | --- |
-| `firmware/platformio.ini` | ESP32/Arduino config and Adafruit libraries | working |
+| `firmware/include/balance.h` | PID controller interface and telemetry struct | working |
+| `firmware/include/imu.h` | IMU reader interface and telemetry struct | working |
+| `firmware/include/motors.h` | Motor-control interface | working |
 | `firmware/include/Pins.h` | GPIO assignments and robot constants | working |
-| `firmware/include/balance.h` | PID controller interface and telemetry | working |
-| `firmware/src/balance.cpp` | PID calculation, integral clamp, telemetry | working |
-| `firmware/include/imu.h` | IMU interface and telemetry | working |
-| `firmware/src/imu.cpp` | MPU6050 init, gyro calibration, complementary filter | working |
-| `firmware/src/main.cpp` | Two FreeRTOS tasks pinned to ESP32 cores | scaffolded and compiling |
-| `firmware/src/motors.cpp` | DRV8833/PWM motor code | intentionally empty |
-| `firmware/src/display.cpp` | ILI9341 face code | intentionally empty |
+| `firmware/src/balance.cpp` | PID calculation, integral limit, and telemetry | working |
+| `firmware/src/display.cpp` | TFT face code | intentionally empty |
+| `firmware/src/main.cpp` | Startup, safety logic, and two FreeRTOS tasks | working |
+| `firmware/src/motors.cpp` | ESP32 PWM and signed DRV8833 motor control | working |
+| `firmware/src/imu.cpp` | MPU6050 setup, calibration, and complementary filter | working |
+| `firmware/platformio.ini` | ESP32/Arduino setup and library dependencies | working |
 
-## Current firmware architecture
+## Current control loop
 
 ```text
-Core 1 — balance task
-every 5 ms / 200 Hz
-eventually: IMU → filter → PID → motors
+Core 1 — every 5 ms / 200 Hz
+GY-87 → complementary filter → PID → both motors
 
-Core 0 — display task
-every 100 ms / 10 FPS
-eventually: draw/update face
+Core 0 — every 100 ms / 10 Hz
+serial status now, TFT face later
 ```
 
-The core split exists now. The live balance chain does not yet exist because the motor and display modules have not been written or connected to `main.cpp`.
+`main.cpp` now creates and connects the real control objects:
 
-## Current GPIO plan
+```text
+ImuReader
+BalanceController
+Motors
+```
+
+Core 1 reads the IMU, checks for failure/fall conditions, calculates a PID motor correction, and sends that correction to both wheels.
+
+If the IMU fails or the robot exceeds the 35° fall limit, the motors are disabled until reboot. That is intentional.
+
+## Current GPIO map
 
 ```text
 GY-87
@@ -81,45 +89,32 @@ ILI9341 TFT
   CS    → GPIO32
   RESET → GPIO13
 
-DRV8833 module
-  IN4 → GPIO25
-  IN3 → GPIO26
-  IN2 → GPIO27
+DRV8833
   IN1 → GPIO14
+  IN2 → GPIO27
+  IN3 → GPIO26
+  IN4 → GPIO25
 ```
 
-The TFT uses 3.3 V for `VCC` and `LED`, matching ESP32 logic levels. Its touch pins are unused in v1.
+The TFT runs from ESP32 `3V3` for matching 3.3 V logic levels. Its touch functionality is unused in the current version.
 
-## Parts plan
+## Current limitations
 
-The intended v1 parts are:
+- No wheel encoders in v1: it can balance by angle but cannot accurately hold position, so wandering is expected.
+- PID values are starter values, not tuned values.
+- Actual IMU axis direction, motor direction, and upright target angle must be verified after physical assembly.
+- The display source file is still empty.
+- The robot has not yet received its inevitable first opportunity to fall over in real life.
 
-- ESP32 30-pin DevKit
-- GY-87
-- 2 × 6 V, 200 RPM N20 metal gear motors
-- HW-627 DRV8833 board
-- 2.8-inch 240 × 320 ILI9341 SPI TFT
-- 2 × LM2596 adjustable buck boards
-- 2 × matched 18650 cells in series, a 2S BMS, fuse, and switch
-- 34 mm wheels
+## Next task
 
-The parts are being sourced; this is still a software-and-schematic-first phase.
-
-## Important current limitations
-
-- No motor encoders in v1. It can balance by tilt angle but will not accurately know its speed or position, so some wandering is expected.
-- The N20s are a compromise for a first working, compact, affordable robot—not unlimited recovery power.
-- The IMU axis assumptions are code placeholders until the real module is mounted. Physical testing will decide whether an axis or sign needs reversing.
-- The current PID values are starter values. They are not tuned values and should not be treated as physics carved into stone.
-
-## Next actual task
-
-1. Run KiCad ERC and fix genuine unconnected-net errors.
-2. Write `motors.cpp`: PWM setup, signed motor commands, and a reliable stop function.
-3. Write a minimal `display.cpp`: initialize TFT and draw one static face.
-4. Connect `ImuReader`, `BalanceController`, and motors in `balanceTask()`.
-5. When hardware arrives, test power rails with a multimeter before connecting anything expensive.
+1. Create the TFT display module in `display.cpp`.
+2. Initialize the ILI9341 and draw a static face from Core 0.
+3. Replace serial-only display status with an actual face update.
+4. When hardware arrives, test power rails with a multimeter before connecting boards.
+5. Test IMU direction, motor direction, and PWM with wheels lifted.
+6. Begin PID tuning only after every subsystem works independently.
 
 ## Rule of the project
 
-The code compiling is not evidence that the robot will balance. It is evidence that the robot has become qualified to fail in a much more interesting way.
+The code compiling means the robot is now qualified to fail in a much more interesting way. Measure voltages, test subsystems separately, and never trust a schematic more than a multimeter.
