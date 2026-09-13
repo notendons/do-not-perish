@@ -106,14 +106,17 @@ The TFT runs from ESP32 `3V3` for matching 3.3 V logic levels. Its touch functio
 - The display source file is still empty.
 - The robot has not yet received its inevitable first opportunity to fall over in real life.
 
-## Next task
+## Cogito roadmap
 
-1. Create the TFT display module in `display.cpp`.
-2. Initialize the ILI9341 and draw a static face from Core 0.
-3. Replace serial-only display status with an actual face update.
-4. When hardware arrives, test power rails with a multimeter before connecting boards.
-5. Test IMU direction, motor direction, and PWM with wheels lifted.
-6. Begin PID tuning only after every subsystem works independently.
+- [ ] **Write `display.cpp`.** Initialize the ILI9341 and prove that it can draw a static test face.
+- [ ] **Create a faces library.** Add reusable expressions such as neutral, blink, happy, confused, and alarm.
+- [ ] **Run faces on Core 0.** Replace serial-only display status with `Display::update()` at 10 FPS.
+- [ ] **Draft Cogito's carcass in Fusion 360.** Begin with wheel/motor geometry, a low battery near the axle, the TFT face opening, and placeholder blocks for every module.
+- [ ] **When hardware arrives, test every subsystem loose.** Set and measure buck voltages; boot the ESP32; read and calibrate the GY-87; test the TFT; test each motor with wheels lifted; verify fall-safety stop.
+- [ ] **Measure actual parts and revise the Fusion model.** The final enclosure must use caliper measurements, not listing images or optimistic guesses.
+- [ ] **Print small fit tests.** Test motor mounts, TFT bezel, and battery tray before printing the full shell.
+- [ ] **Assemble Cogito.** Mount modules, route wiring, and keep the battery low and close to the wheel axle.
+- [ ] **Calibrate and tune.** Verify IMU axes, motor directions, upright target angle, then tune PID values.
 
 ## Rule of the project
 
